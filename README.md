@@ -17,3 +17,5 @@ Una vez hecho eso, ir al markdown y correrlo sin pasos adicionales. Allí se gen
 Los archivos tienen sus respectivos nombres
 
 NOTA IMPORTANTE: A LA HORA DE EXPORTAR ARCHIVOS AL FINAL DEL SCRIPT, HAY QUE CAMBIAR LA RUTA A LA CORRESPONDIENTE DE CADA COMPUTADORA.
+
+Se recomienda tambien guardar el Rmarkdown junto en una misma carpeta con todo lo demas.
