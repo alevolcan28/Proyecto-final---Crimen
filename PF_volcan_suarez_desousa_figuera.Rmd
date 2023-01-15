@@ -1,0 +1,738 @@
+---
+title: "Crimen, seguridad nacional, gobernanza y desigualdad: un vistazo general a los determinantes de la tasa de homicidio. "
+author: "Carlos Volcán, Santiago De Sousa, Andrés Suarez y Diego Figuera"
+date: "Enero de 2023"
+output:
+   html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    collapsed: true
+    smooth_scroll: true
+    theme: journal
+    highlight: kate
+    df_print: paged
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# **Introducción**
+
+En 1950 en Venezuela, Carlos Delgado Chalbaud se dirigía al palacio presidencial cuando su vehículo fue interceptado por delincuentes que posteriormente acabarían con su vida, cometiendo el único magnicidio en dicho país. Anteriormente en 1948, uno de los principales líderes de la independencia india, Mahatma Ghandi, sufrió de un atentado contra su vida al estar impartiendo sus oraciones religiosas. Posteriormente en 1968, Martin Luther King, el principal líder en la lucha contra la discriminación racial en Estados Unidos, vería su vida arrebatada con armas de fuego mientras daba un discurso públicamente. Si bien estos tres sucesos son mundialmente conocidos por la importancia de cada persona involucrada, son casos específicos de los numerosos homicidios ocurridos en cada continente. 
+
+En este sentido, varios autores de finales del siglo XX y principios del siglo XXI han investigado las posibles razones por la cual la tasa de homicidio puede variar de región en región. Por ejemplo, la tasa de homicidio de México era 22.4 y la de Japón era tan solo 0.364 por cada 100.000 habitantes para 2010. Es por esto que Soares (2004) en su paper realiza una recopilación exhaustiva de las investigaciones que abordan los determinantes del crimen. En dicho compendio, se encuentran variables sociales como la seguridad ciudadana, la desigualdad y la capacidad de gobierno efectivo de un país; y variables económicas como el crecimiento económico y nivel de ingreso. Además, Levitt y Dubner (2000) llevaron a cabo otra investigación para Estados Unidos donde se centran en dos variables: legalización y tasa de aborto, evaluado junto con la densidad poblacional de cada estado del país.
+
+Los resultados que las investigaciones citadas encuentran son diversos, entre ellos: relaciones positivas y negativas, al mismo tiempo, del crecimiento económico y la tasa de homicidio; relaciones inversas entre la seguridad nacional y la capacidad de gobierno efectivo con la tasa de homicidio; relaciones inversas entre la tasa de aborto y el crimén con un periodo diferido de 20 años; y relaciones directas entre la densidad poblacional con la tasa de homicidio para Estados Unidos específicamente. Estos resultados motivan a que el propósito del presente trabajo sea analizar las relaciones propuestas por Soares (2004) y Levit y Dubner (2000) para años más recientes junto con otras variables propuestas por los autores de este proyecto. La importancia de esto radica en la información que los resultados puedan sugerir para fijar variables objetivo al realizar políticas públicas con el fin de reducir la tasa de criminalidad, específicamente de homicidios. Con ello, el proyecto se dividirá en un análisis general por continente y un caso de estudio del efecto del aborto en Estados Unidos.
+
+## **Interrogantes a contestar**
+
+En este caso, las preguntas de investigación que se limitará a responder el proyecto son las siguientes:
+
+-   ¿Cuáles son las variables que más tienen relación con la tasa de homicidios?
+
+-   ¿La relación propuesta de Soares (2004) se mantiene para el año 2010 para el crecimiento económico y tasa de homicidios? ¿Por qué hay discrepancias que dependen de esta última variable?
+
+-   ¿En qué ámbito de seguridad nacional debería invertir un gobierno para disminuir los homicidios: personal policial o militar?
+
+-   ¿Cómo afectan las armas a la tasa de homicidio? ¿Cuáles son las discrepancias entre distintas mediciones?
+
+-   ¿Cómo afecta el desempleo a la tasa de homicidio?
+
+-   ¿Cuál es la relación entre el aborto y la tasa de homicidio a raíz de los datos de EE.UU.?
+
+## **Sobre los datos**
+
+### **Librerías necesarias**
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)    ## Manejo de bases de datos y gráficos
+library(readxl)       ## Leer archivos excel
+library(tmap)         ## Para los mapas
+library(plotly)       ## Complemento de gganimate
+library(ggdark)       ## Temas
+library(wesanderson)  ## Temas
+library(writexl)      ## Exportar excel
+library(ggcorrplot)   ## Mapa de calor de correlación
+library(haven)
+library(data.table)
+library(sjlabelled)
+library(sjPlot)      ## Heramientas adicionales
+library(rmarkdown)
+library(knitr)
+library(haven)
+library(data.table)
+library(sjlabelled)
+library(tigris)       ##Mapa US
+library(sf)
+```
+
+### **Carga de datos**
+
+```{r message=FALSE, warning=FALSE}
+## Colores a usar:
+colores <- c("#93032E", "#FFFFFF", "#531253", "#A0ACAD", "#004643", "#0C1618")
+colores1 <- c("#93032E", "#531253", "#A0ACAD", "#004643", "#0C1618")
+
+## Carga de la base previamente procesada en R para el apartado general ###
+data_proyecto <- read_excel("data_proyecto.xlsx")
+
+## Hago transformaciones necesarias
+data_proyecto2010 <- data_proyecto %>%
+  #Filtro por año de intereés
+  filter(year == 2010) %>% 
+  #Calculo de indicador paraposterior uso
+  mutate(across(c(rule_of_law,
+                 pol_stability,
+                 control_corruption,
+                 effectiveness,
+                 regulatory_capacity,
+                 voice_account, pop, personal_militar,
+                 arm_import, arms_traf, gini, deseempleo, pop_urbana, police, t_homicidio, real_homicidio), as.numeric)) %>%
+  mutate(ranking =
+           (rule_of_law + pol_stability + control_corruption + effectiveness + regulatory_capacity + voice_account)/5) %>% 
+  select(!geometry)
+
+data_proyecto_posterior <- data_proyecto
+
+## Cargo geometria para mapas
+world<- data("World")
+world <- World %>%  
+  rename(
+    code = iso_a3) %>% 
+  select(code, geometry, continent) %>% 
+   mutate(
+    continent = case_when(continent == "Africa" ~ "Africa",
+                          continent == "Asia" ~ "Asia",
+                          continent == "Europe" ~ "Europa",
+                          continent == "North America" ~ "Norte America",
+                          continent == "South America" ~ "Sur America"))
+
+## Uno geometria con los datos originales
+data_mapa2 <- left_join(world, data_proyecto2010, by = "code")
+colnames(data_proyecto2010) <- c("Codigo", "Pais", "Poblacion", "Personal Militar", "Importaciones de Armas", "Gini", "Deseempleo", "Poblacion Urbana", "Numero de policias", "Control de corrupcion", "Efectividad Gubernamental", "Estabilidad Politica", "Capacidad regulatoria", "Imperio de Ley", "Voz", "Crecimiento", "Tasa de Homicidio", "Trafico de armas", "Año")
+
+#### Carga para el apartado de Estados Unidos ya limpiada en R ####
+
+crimenUS <- read_excel("data_proyecto.xlsx", sheet = 2)
+crimenUSv <- crimenUS
+
+#Cambio nombre de columnas para mostrar tabla
+colnames(crimenUSv) <- c("Año", "Años desde 1970", "Media legalizadores anticipados", "Media legalizadores tardios")
+
+## Visualizacion de los mismos
+paged_table(
+  data_proyecto2010
+  )
+
+paged_table(
+  crimenUSv
+  )
+
+```
+
+### **Explicación de los datos**
+
+Para el análisis exploratorio de las variables que afectan a la tasa de homicidio se decidieron tomar las variables recopiladas en la investigación de Soares (2004), asimismo como otras adicionales propuestas por los autores de este trabajo. Las fuentes junto con sus variables para el año 2010 son las siguientes:
+
+1.  Indicadores de desarrollo del Banco Mundial:
+
+    -   Importaciones de armas: está medida en dólares americanos e indica cuál es el valor de la cantidad de armas importadas para el periodo indicado.
+
+    -   Densidad poblacional: es la cantidad de habitantes que hay por cada kilómetro cuadrado.
+
+    -   Población urbana: la cantidad de habitantes que viven en zonas urbanas.
+
+    -   Gasto en educación: medido como porcentaje del PIB. Indica que tanto gasta un gobierno en cualquier ámbito de la educación de su población.
+
+    -   Tasa de crimen oficial: tasa de homicidios medida en personas por cada 100.000 habitantes. Indica cuántos homicidios y sirve como aproximación de que tantos crímenes violentos hay. Son las que reportan cada gobierno a la Organización de Naciones Unidas.
+
+    -   Crecimiento económico: mide qué tanto creció la producción de un país de un año a otro en términos porcentuales.
+
+    -   Desigualdad: medida a través del Coeficiente de Gini con valores entre 0 y 100, donde 100 significa muy desigual y 0 muy igual. En este caso, igualdad se refiere a la distribución del ingreso.
+
+    -   Policía: el número de personal que trabaja en cuerpos policiales del país.
+
+    -   Militares: el número de personal relativo a la fuerza de trabajo que se encuentra en cualquier rama del ejército del país. 
+
+    -   Desempleo: personas sin trabajo pero que buscan uno compo porcentaje de la fuerza laboral del país.
+
+2.  Organización Internacional Contra el Crimen Organizado:
+
+    -   Tráfico de armas: que tan susceptible es el país analizado a que se trafiquen armas en sus territorios. Tiene un valor de 0 a 10 donde
+
+3.  Indicadores de gobernanza del Banco Mundial (todos los siguientes indicadores comprenden valores entre -2.5 y 2.5, donde -2.5 significa que el gobierno carece totalmente de dicho ámbito y 2.5 significa que lo posee con creces):
+
+    -   Control de corrupción: mide que tanto el gobierno no se usa para intereses personales de los funcionarios públicos.
+
+    -   Efectividad gubernamental: mide qué tan efectivas son las políticas públicas del Estado en relación a sus objetivos.
+
+    -   Estabilidad política: mide la ausencia de violencia por motivos políticos.
+
+    -   Calidad regulatoria: mide que tanto el gobierno promueve políticas efectivas que desarrollen el sector privado.
+
+    -   Efectividad de leyes: mide que tanto el gobierno puede hacer cumplir las leyes establecidas y mantener el orden en la sociedad a partir de éstas.
+
+    -   Poder de voz: mide que tanto el gobierno promueve la libertad de expresión en el país.
+
+4.  Encuesta internacional de crimen:
+
+    -   Tasa de crímenes: calculada a partir de los resultados de la encuesta realizada por esta organización directamente a la población en distintos países. Es la tasa de crímenes violentos por 100.000 habitantes. Es promedio de las encuestas realizadas entre 1989 y 1997 para los país participantes, el mismo es calculado por Soares (2004).
+
+### **Metodología**
+
+Para lograr responder de la manera más efectiva las preguntas planteadas al inicio, se plantean los siguientes pasos a seguir en la parte de análisis:
+
+1.  Realización de un correlograma realizado a partir de los coeficientes de Correlación de Pearson de las variables. Es importante recordar que este indicador toma valores entre -1 y 1, donde -1 significa una relación perfectamente inversa, 1 una relación perfecta directa y 0 que no hay relación. El objetivo es determinar cuales son las variables más relacionadas con la tasa de homicidios oficial a partir de las variables recopiladas y propuestas. Éstas serán las utilizadas en las siguientes partes. Cabe acotar que se harán dos: uno para 1997 para con el fin de medir la relación entre los dos tipos de tasas y el crecimiento económico y otro para 2010 con las demás variables. La razón principal es que los datos captados por la encuesta internacional de crimen llegan hasta 1997.
+
+2.  Realización de mapas de calor para comparar los valores de la tasa de homicidio con los valores de las variables electas.
+
+3.  Realización de nube de puntos y línea de regresión para comparar las relaciones de manera general y por continente para ver la consistencia de resultados en distintos lugares del mundo.
+
+4.  Para el caso de estudio del aborto en EE.UU. se realizará un análisis temporal a través de un gráfico de lineas y un mapa de los estados que indique cuáles fueron los que legalizaron el aborto antes que el resto.
+
+# **Analisis**
+
+## **Correlograma de variables**
+
+En el siguiente gráfico se puede observar un mapa de calor donde se visualiza el coeficiente de correlación entre las variables anteriormente indicadas:
+
+![](correlograma_variables.png)
+
+Se puede observar lo siguiente a raiz de él:
+
+1.  Relación intensa entre los indicadores de gobernanza anteriormente descritos y la tasa de crimen. Entonces, pudiese sugerir que mientras mejor sea un gobierno según estos indicadores, más eficiente es controlando el crimen y mejore la calidad de vida de sus habitantes, lo que ocasionará menor tasa de crimen. 
+
+2.  Relación directa entre la desigualdad medida por el coeficiente de Gini y el crimen medido por la tasa de homicidio. Lo que sugiere que mientras más se concentra el ingreso de la población en unos pocos, más recursos pueden faltarles a los demás y por tanto, deciden cometer crímenes para saciar sus necesidades.
+
+3.  Relación inversa entre importaciones de armas pero directa con tráfico de armas. Esto pudiese sugerir que cuando las armas se registran en la balanza de pagos del país, las mismas son usadas para fines dentro de la ley. Mientras que cuando se trafican armas, las mismas son usadas para fines ilegales que conllevan homicidios.
+
+4.  Se denota una relación inversa entre desempleo y tasa de homicidios, sin embargo, no se encuentra una explicación en la literatura para la misma. 
+
+5.  También se denota una relación directa entre tasa de crecimiento económico y homicidios, lo cual pudiese sugerir que mientras más rico un país, más crímenes tenga. Sin embargo, este caso se expondrá en el siguiente apartado.
+
+Por tanto, se plantea estudiar más a fondo las relaciones entre el crimen y los indicadores de gobernanza, la desigualdad, la seguridad nacional y el crecimiento económico.
+
+## **Caso 1. Crecimiento o desarrollo económico y Crimen**
+
+Como ya se ha aclarado, Soares (2004) explica y analiza esta relación detalladamente y es por ello que a partir de su investigación se forjarán los resultados del informe. En dicho análisis se toma como premisa la Teoría Económica del Crimen, la cual consiste según Shaefer y Shikida (2001)  en "la toma de decisiones de los individuos en relación con la comisión de delitos dirigidos a las ganancias financieras es una actividad o sector de la economía, como cualquier otro". Por lo cual suena lógico pensar que la actividad delictiva estará íntimamente relacionada con las variables que afectan al desarrollo económico. Una vez aclarado esto, resulta pertinente analizar la dirección y significancia de estas variables más allá de estar relacionadas. Aún cuando en investigaciones previas de la literatura criminológica, exista un vínculo positivo entre el crecimiento económico y la tasa de criminalidad. 
+
+Después de lo anterior expuesto, es necesario resaltar que se observará la relación del desarrollo económico con el crimen por medio de dos aristas. En primer lugar, se tendrá en consideración una Tasa de homicidio real que refleja a través de la Encuesta Internacional de Víctimas del Delito (ICVS), un nuevo conjunto de datos basados en encuestas de victimización para el año 1997 distribuidos en varios países. En segundo lugar, se tomará en cuenta la   Encuesta de las Naciones Unidas sobre tendencias delictivas y operaciones de los sistemas de justicia penal (UNCS). Este último será de utilidad para hacer el comparativo entre los registros oficiales (UNCS) y la tasa real de homicidios (ICVS) en relación con el desarrollo o crecimiento económico. Adicionalmente, los datos relacionados al desarrollo económico fueron obtenidos del Banco Mundial de múltiples países 90 para el año 1997 igualmente. Se puede observar el siguiente correlograma:
+
+```{r message=FALSE, warning=FALSE}
+data_proyecto_posterior %>%
+  filter(year == 1997 & t_homicidio <= 40) %>% 
+  select(c(
+           crecimiento, t_homicidio,
+           real_homicidio)) %>% 
+  mutate(
+    across(everything(), as.numeric),
+  ) %>% 
+  na.omit() %>% 
+  cor() %>%
+  round(digits = 1) %>% 
+  ggcorrplot(
+    outline.col = "white",
+    ggtheme = ggplot2::theme_gray,
+    colors = colores,
+    lab = T) +
+  labs(
+    title = "Mapa de correlacion",
+    subtitle = "Variables que pudiesen afectar a la tasa de homicidio",
+    y = "",
+    x = "") +
+  guides(color=guide_legend(title="Correlación")) +
+  
+  theme_minimal(base_size = 12, base_family = "Georgia") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, face = "bold", size = 12),
+        axis.text.y = element_text(face = "bold", size = 12),
+        title = element_text(face = "bold", size = 15),
+        plot.subtitle=element_text(size=12, color="black"))
+```
+
+En referencia a la clasificación anterior, se construye el mapa de correlación, como su nombre lo indica, busca identificar exactamente cuál es la relación y significancia entre ambas tasas de homicidio identificadas y el crecimiento económico de los países. Como consecuencia de esto, se puede identificar que el crecimiento económico, como ya se vió, tiene relacion directa con la tasa de homicidio oficial. Sin embargo, cuando se trata de la real, la relacion para ser inversa. Esto sugiere que la relacion entre crecimiento y tasa de homicidio debe ser analizada con cautela. La misma puede ser una relacion de reportaje de crimenes mas que del crimen en si. Es decir, los paises con mayor crecimiento e ingresos pueden tener mas mecanismos de denuncias de crimenes que los de menor ingreso. Lo que significa que los paises ricos tienen mayor tasa de homicidio porque se reportan más que los pobres. Esto último se observa mejor en el siguiente gráfico:
+
+```{r message=FALSE, warning=FALSE}
+data_proyecto_posterior %>%
+  filter( year == 1997) %>%
+  select(c(real_homicidio, t_homicidio)) %>%
+  mutate(
+    across(everything(), as.numeric),
+  ) %>%
+  rename(
+    `Tasa oficial` = t_homicidio,
+    `Tasa real` = real_homicidio,
+  ) %>%
+  pivot_longer(c(`Tasa oficial`, `Tasa real`),
+               names_to = "tipo",
+               values_to = "valor"
+  ) %>%
+  na.omit() %>%
+  ggplot(aes( x = tipo, y = valor, fill = tipo,
+              color = factor(tipo))) +
+  ggdist::stat_halfeye(adjust = 0.5, justification = -.2,
+                       .width = 0,
+                       point_colour = NA) +
+  labs(
+    title = "Tasa real de homicidio vs oficial",
+    subtitle = "",
+    y = "",
+    x = "Densidad (%)") +
+    theme_minimal(base_size = 12, base_family = "Georgia") +
+    theme(legend.position=c(0.7,0.7)) +
+    scale_color_manual(values = colores1) +
+    scale_fill_manual(values = colores1) +
+    guides(fill =guide_legend(title="Tipo de homicidio"),
+           color = F) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, face = "bold", size = 12),
+        axis.text.y = element_text(face = "bold", size = 12),
+        title = element_text(face = "bold", size = 15),
+        plot.subtitle=element_text(size=12, color="black")) +
+    coord_flip()
+
+```
+
+En este caso, se puede observar un gráfico de distribución con dos tipos de variables independientes y una dependiente en común. Por un lado, se relaciona la Tasa real y por otro la oficial, ambas de homicidios como en los gráficos anteriores y a su vez relacionadas con la densidad de los datos, medida en porcentaje. En el caso de la oficial, se puede notar como la mayor cantidad de países se ubica entre 0 y 20 asesinatos por cada 100.000 personas. A diferencia de la tasa real de homicidio, donde se evidencia una concentración de los datos entre 20 y 40 asesinatos cada 100.000 personas. 
+
+Tal como se ha visto, la relación entre la tasa de criminalidad y el desarrollo económico es ambigua y dependen del tipo de información que se quiera analizar en cuanto a las tasas. Se puede evidenciar gracias al último gráfico, un problema estadístico importante que se ignora en muchos estudios del crimen. En efecto, existen dificultades institucionales y sistemáticas para reportar todos los crímenes que se generan en los países. Es por ello que, los datos oficiales en la mayoría de los casos subestiman en gran medida las tasas de delincuencia reales, y esto constituye un grave problema en las conclusiones de las relaciones como se ha visto anteriormente. 
+
+## **Caso 2. Seguridad Nacional y Crimen**
+
+### Personal militar
+
+Habiendo analizado el crecimiento económico como determinante, ahora se procede a evaluar otra categoría de variables que cualquier persona podría pensar que está ligada al crimen. Este es el caso de la fuerza policial y militar en una nación, que se puede agrupar bajo el nombre de "seguridad nacional". Ahora, cabe aclarar que, evidentemente, la población de cada país cuenta con características distintas y vive bajo contextos distintos, es decir, puede que la cantidad de policías y militares en un país se deba a que alguna otra variable está incrementando el crimen y, como medida de respuesta, el Estado de la nación ha decidido incrementar el personal de seguridad, como también puede ser el caso de que el país cuenta con unos niveles altos de corrupción que llegan al nivel policial, reduciendo su efectividad a la hora de contrarrestar el crimen. Tomando en cuenta estas diferentes posibilidades es que se debe realizar un juicio a partir de las visualizaciones que se presentarán a continuación:
+
+```{r message=FALSE, warning=FALSE}
+data_mapa2 %>%
+  filter(year == 2010) %>%
+  filter(continent != "Seven seas (open ocean)" &
+           continent != "Antarctica" ) %>%
+  ggplot(aes(x = as.numeric(personal_militar), y = t_homicidio, color = continent)) +
+  geom_point() +
+
+  labs(
+    title = "Tasa de homicidio oficial vs militares",
+    subtitle = "Dispersión y regresión ajustada",
+    y = "Tasa de homicidio oficial",
+    x = "Militar personal (% fuerza de trabajo)",
+  ) +
+
+  theme_bw(base_size = 12, base_family = "Georgia") +
+  theme(legend.position=c(0.6,0.3)) +
+  guides(color=guide_legend(title="Continente"),
+         size=guide_legend(title = "Gini")) +
+  scale_color_manual(values = c(colores1)) +
+  stat_smooth(method="lm",se=FALSE, color = "black") +
+  theme(axis.text.x = element_text(vjust = 0.5, hjust=1, face = "bold", size = 12),
+        axis.text.y = element_text(face = "bold", size = 12),
+        title = element_text(face = "bold", size = 15),
+        plot.subtitle=element_text(size=12, color="black")) +
+  facet_grid(continent~.) 
+
+```
+
+```{r message=FALSE, warning=FALSE}
+data_mapa2 %>%
+  filter(continent != "Seven seas (open ocean)" &
+           continent != "Antarctica" ) %>%
+  ggplot(aes(x = personal_militar, y = t_homicidio, color = continent)) +
+  geom_point() +
+
+  labs(
+    title = "Tasa de homicidio oficial vs militares",
+    subtitle = "Dispersión y regresión ajustada",
+    y = "Tasa de homicidio oficial",
+    x = "Militar personal (% fuerza de trabajo)",
+  ) +
+
+  theme_bw(base_size = 12, base_family = "Georgia") +
+  theme(legend.position=c(0.6,0.5)) +
+  guides(color=guide_legend(title="Continente"),
+         size=guide_legend(title = "Gini")) +
+  scale_color_manual(values = c(colores1)) +
+  stat_smooth(method="lm",se=FALSE, color = "black") +
+  theme(axis.text.x = element_text(vjust = 0.5, hjust=1, face = "bold", size = 12),
+        axis.text.y = element_text(face = "bold", size = 12),
+        title = element_text(face = "bold", size = 15),
+        plot.subtitle=element_text(size=12, color="black"))
+```
+
+En cuanto al gráfico de abajo, se analiza a nivel mundial esta relación entre el personal militar y la tasa de homicidio oficial. La relación a la que se llega en el agregado es negativa, es decir, mientras mayor sea el personal militar, menor es la tasa de homicidio. Por supuesto, además de las consideraciones mencionadas anteriormente, esta conclusión puede no implicar ningún tipo de relación causal entre las variable sino que, por ejemplo, indica que los países con suficientes recursos y eficiencia económica como para incrementar su fuerza militar son los mismos países que cuentan con menores tasas de homicidio por el mismo motivo de nivel de desarrollo económico. lor todas estas consideraciones que se han hecho sobre la población de cada nación, se consideró prudente ampliar el análisis de correlación al desagrupar el estudio en continentes. Se puede evidenciar, entre otras cosas, que la relación es negativa en África y Asia, mientras que lo es positiva en América y Europa. Nuevamente, estas relaciones son poco significativas.
+
+### Personal policia
+
+En el mismo orden de ideas, resulta relevante analizar la cantidad de policías circulantes en la sociedad motivado a generar esa contención contra el crimen. En efecto, constituye una relación significativa para disminuir la tasa de criminalidad en los países. Sin embargo, debe analizarse individualmente esta relación por continente y en tal caso de poderse por país, para obtener unas conclusiones fundamentadas. Esto sucede, debido a lo que se comentaba anteriormente, cada país y en este caso continente pasa por ambientes económicos, sociales  e incluso bélicos particulares y se debe tener en cuenta. Se pueden observar los siguientes graficos:
+
+```{r message=FALSE, warning=FALSE}
+data_mapa2 %>%
+  filter(year == 2010) %>%
+  filter(continent != "Seven seas (open ocean)" &
+           continent != "Antarctica" ) %>%
+  ggplot(aes(x = as.numeric(police), y = t_homicidio, color = continent)) +
+  geom_point() +
+  
+  labs(
+    title = "Tasa de homicidio oficial vs policias",
+    subtitle = "Dispersión y regresión ajustada",
+    y = "Tasa de homicidio oficial",
+    x = "Numero de policias",
+  ) +
+  
+  theme_bw(base_size = 12, base_family = "Georgia") +
+  theme(legend.position=c(0.6,0.5)) +
+  guides(color=guide_legend(title="Continente"),
+         size=guide_legend(title = "Gini")) +
+  scale_color_manual(values = c(colores1)) +
+  stat_smooth(method="lm",se=FALSE, color = "black") +
+  theme(axis.text.x = element_text(vjust = 0.5, hjust=1, face = "bold", size = 12),
+        axis.text.y = element_text(face = "bold", size = 12),
+        title = element_text(face = "bold", size = 15),
+        plot.subtitle=element_text(size=12, color="black")) 
+```
+
+```{r message=FALSE, warning=FALSE}
+data_mapa2 %>%
+  filter(year == 2010) %>%
+  filter(continent != "Seven seas (open ocean)" &
+           continent != "Antarctica" ) %>%
+  ggplot(aes(x = as.numeric(police), y = t_homicidio, color = continent)) +
+  geom_point() +
+  
+  labs(
+    title = "Tasa de homicidio oficial vs policias",
+    subtitle = "Dispersión y regresión ajustada",
+    y = "Tasa de homicidio oficial",
+    x = "Numero de policias",
+  ) +
+  
+  theme_bw(base_size = 12, base_family = "Georgia") +
+  theme(legend.position=c(0.6,0.5)) +
+  guides(color=guide_legend(title="Continente"),
+         size=guide_legend(title = "Gini")) +
+  scale_color_manual(values = c(colores1)) +
+  stat_smooth(method="lm",se=FALSE, color = "black") +
+  theme(axis.text.x = element_text(vjust = 0.5, hjust=1, face = "bold", size = 12),
+        axis.text.y = element_text(face = "bold", size = 12),
+        title = element_text(face = "bold", size = 15),
+        plot.subtitle=element_text(size=12, color="black")) +
+  facet_grid(continent~.) 
+
+```
+
+\
+En cuanto al primer gráfico, se analiza a nivel mundial esta relación entre el personal policial y la tasa de homicidio oficial. Al igual que el personal militar, la relación a la que se llega en el agregado es negativa, es decir, mientras mayor sea el personal policial, menor es la tasa de homicidio. Por esta misma razón, se puede inferir nuevamente que esta relación puede ser provocada primordialmente gracias al desarrollo económico que permitió tener esa infraestructura militar y en este caso policial. Sin embargo, puede destacarse una relación más débil que con el personal militar. Precisando de una vez cada continente y analizando particularmente sus relaciones, Ante esta situación, se puede apreciar una relación negativa en África y Norteamérica, mientras que positiva en Sur América y Europa. Además, se obtiene una relación aparentemente insignificante entre el número de policías y la tasa de homicidio oficial en Asia.
+
+## **Caso 3. Desigualdad y crimen**
+
+En el área académica de las ciencias sociales, uno de los indicadores más aceptados y conocidos para reflejar de forma significativa la desigualdad es el coeficiente de Gini, por medir esta característica a través de los porcentajes de población e ingresos, "aislando el efecto del ingreso total y, por lo tanto, ésta sólo refleja la estructura y forma de la distribución" (Medina, 2001, p. 15). Asimismo, se tiene que los trabajos académicos encuentran una de las relaciones más robustas con el crimen a través de esta variable, razón por la que se ha decidido presentar una visualización del caso a nivel global.
+
+```{r message=FALSE, warning=FALSE}
+data_mapa2 %>%
+  filter(year == 2010) %>%
+  filter(continent != "Seven seas (open ocean)" &
+           continent != "Antarctica" ) %>%
+  ggplot(aes(x = as.numeric(gini), y = as.numeric(t_homicidio), color = continent)) +
+  geom_point() +
+  stat_smooth(method="lm",se=FALSE, color = "black") + 
+
+  theme_bw(base_size = 12, base_family = "Georgia") +
+  theme(legend.position=c(0.3,0.70)) +
+  guides(color=guide_legend(title="Continente"),
+         size=guide_legend(title = "Gini")) +
+  scale_color_manual(values = c(colores1)) +
+  stat_smooth(method="lm",se=FALSE, color = "black") +
+  theme(axis.text.x = element_text(vjust = 0.5, hjust=1, face = "bold", size = 12),
+        axis.text.y = element_text(face = "bold", size = 12),
+        title = element_text(face = "bold", size = 15),
+        plot.subtitle=element_text(size=12, color="black")) +
+  labs(title = "Tasa de homicidio oficial vs Gini",
+       subtitle = "Dispersión y regresión ajustada",
+       y = "Tasa de homicidio oficial",
+       x = "Coeficiente Gini",
+  ) 
+
+```
+
+A través de la codificación de colores por continente del gráfico, se puede evidenciar a primera vista la ubicación agrupada de los países de cada continente respecto a las variables en cada eje. Se evidencian tanto bajos niveles de desigualdad como crimen para los países europeos; unos un poco más altos para Asía; muchísima desigualdad y crimen en Latinoamérica y África, y Estados Unidos se encuentra por el medio de todo esto. También, se hace clara la relación positiva entre los ejes, conclusión ampliamente apoyada por decenas de estudios sobre el tema. De todas maneras se puede observar las relaciones por cada continente:\
+
+```{r message=FALSE, warning=FALSE}
+data_mapa2 %>%
+  filter(year == 2010) %>%
+  filter(continent != "Seven seas (open ocean)" &
+           continent != "Antarctica" ) %>%
+  ggplot(aes(x = as.numeric(gini), y = as.numeric(t_homicidio), color = continent)) +
+  geom_point() +
+  stat_smooth(method="lm",se=FALSE, color = "black") + 
+
+  theme_bw(base_size = 12, base_family = "Georgia") +
+  guides(color=guide_legend(title="Continente"),
+         size=guide_legend(title = "Gini")) +
+  scale_color_manual(values = c(colores1)) +
+  stat_smooth(method="lm",se=FALSE, color = "black") +
+  theme(axis.text.x = element_text(vjust = 0.5, hjust=1, face = "bold", size = 12),
+        axis.text.y = element_text(face = "bold", size = 12),
+        title = element_text(face = "bold", size = 15),
+        plot.subtitle=element_text(size=12, color="black")) +
+  labs(title = "Tasa de homicidio oficial vs Gini",
+       subtitle = "Dispersión y regresión ajustada",
+       y = "Tasa de homicidio oficial",
+       x = "Coeficiente Gini",
+  ) +
+  facet_grid(continent~.)
+```
+
+## **Caso 4. Gobernanza y crimen**
+
+Otro set de variables importantes en el estudio del crimen y sus determinantes es aquel relacionado a la gobernanza, es decir, la calidad o efectividad del gobierno y sus instituciones. Por supuesto, la gobernanza se puede medir de muchas maneras. Como se presentó inicialmente en el correlograma (gráfico 0), están variables como el control de corrupción, efectividad gubernamental, estabilidad política, calidad regulatoria, efectividad de leyes y el poder de voz. Estos índices (menos efectividad de leyes) cuentan con correlaciones negativas por debajo de -0.5, es decir, tienen relaciones importantes con el crimen. Ahora, como se trata de muchas variables, para este análisis se consideró prudente la creación de un indicador a partir del promedio de estos indicadores, al cual se le puso el nombre de \"ranking\".
+
+```{r message=FALSE, warning=FALSE}
+data_mapa2 %>%
+  filter(year == 2010) %>%
+  filter(continent != "Seven seas (open ocean)" &
+           continent != "Antarctica" ) %>%
+  ggplot(aes(x = ranking, y = t_homicidio, color = continent)) +
+  geom_point() +
+  
+  labs(
+    title = "Tasa de homicidio oficial vs gobernanza",
+    subtitle = "Ranking de gobernanza",
+    y = "Tasa de homicidio oficial",
+    x = "Ranking de gobernanza",
+  ) +
+  
+  theme_bw(base_size = 12, base_family = "Georgia") +
+  theme(legend.position=c(0.2,0.8)) +
+  guides(color=guide_legend(title="Continente"),
+         size=guide_legend(title = "Gini")) +
+  scale_color_manual(values = c(colores1)) +
+  stat_smooth(method="lm",se=FALSE, color = "black") +
+  theme(axis.text.x = element_text(vjust = 0.5, hjust=1, face = "bold", size = 12),
+        axis.text.y = element_text(face = "bold", size = 12),
+        title = element_text(face = "bold", size = 15),
+        plot.subtitle=element_text(size=12, color="black")) 
+```
+
+```{r message=FALSE, warning=FALSE}
+data_mapa2 %>%
+  filter(year == 2010) %>%
+  filter(continent != "Seven seas (open ocean)" &
+           continent != "Antarctica" ) %>%
+  ggplot(aes(x = ranking, y = t_homicidio, color = continent)) +
+  geom_point() +
+  
+  labs(
+    title = "Tasa de homicidio oficial vs gobernanza",
+    subtitle = "Ranking de gobernanza",
+    y = "Tasa de homicidio oficial",
+    x = "Ranking de gobernanza",
+  ) +
+  
+  theme_bw(base_size = 12, base_family = "Georgia") +
+  theme(legend.position=c(0.2,0.8)) +
+  guides(color=guide_legend(title="Continente"),
+         size=guide_legend(title = "Gini")) +
+  scale_color_manual(values = c(colores1)) +
+  stat_smooth(method="lm",se=FALSE, color = "black") +
+  theme(axis.text.x = element_text(vjust = 0.5, hjust=1, face = "bold", size = 12),
+        axis.text.y = element_text(face = "bold", size = 12),
+        title = element_text(face = "bold", size = 15),
+        plot.subtitle=element_text(size=12, color="black")) +
+  ### Por continente
+  facet_grid(continent~.) 
+
+```
+
+Tal como en los casos anteriores, el ranking también fue evaluado a nivel general y a nivel de continentes para reforzar las conclusiones. En el primer caso (gráfico de la derecha), se comprueba visualmente la relación negativa entre las dos variables. Aquí también es importante resaltar las elevadas tasas de homicidios a unos mismos niveles de ranking que corresponden a ciertos países en África y América del Sur. En cuanto al segundo caso, del estudio por continente, Asia, América del Sur y Norte son los continentes que mejor reflejan esta relación. El caso de Europa no presenta mayor relación, y África muestra un resultado completamente contraintuitivo que puede deberse a otros factores del país.\
+
+## **Caso especial. Aborto y crimen en Estados Unidos**
+
+"Where have all the criminals gone?" es el nombre del cuarto capítulo en el renombrado libro de Levitt y Dubner, Freakonomics. Dicha sección del libro está basada en un estudio realizado por el mismo Steven Levitt y John Donohue en 2001, finalmente dando una respuesta que, resulta, nadie se había formulado seriamente hasta la fecha, cumpliendo con la promesa del título al presentar el "hidden side of" el crimen: cómo se relaciona con la absorción, realmente. Y es que el enfoque económico sobre el crimen es relativamente reciente, siendo este uno de los primeros estudios en refutar las ideas básicas que había presentado la criminología sobre las relaciones entre el crimen y otras variables por medios poco robustos.
+
+Lo audaz de este estudio yace en la selección de los datos, en el hallazgo de un fenómeno natural en la década de los 70 en los Estados Unidos. El caso, las leyes a favor de la absorción en 5 Estados del país en 1970, seguido de la misma aplicación jurídica 3 años después en el resto de los Estados Unidos con el famoso (o infame) caso Roe vs. Wade. En cuanto a los datos y el procedimiento aplicado para la determinacion de la relacion entre el crimen y este suceso, los autores partieron de la idea estudiada de que los abortos suelen tomar parte en hogares, en promedio, menos capacitados para la formacion apropiada de un individuo, sea por menor acceso a la educacion o ambiente pobre en general para la crianza. Y ¿qué se suele relacionar a los hogares poco funcionales? ¡al crimen! Pero claro, no podían esperar un efecto instantáneo entre más abortos hoy y el crimen hoy. Por supuesto, tenían que evaluar qué pasaría cuando la nueva generación de criminales después de la política cumpliera entre 15, 20 y 25 años. Se buscaba evidenciar que habría menos criminales de esta generación en los Estados que aplicaron la ley primero. En el siguiente mapa se pueden observar los estados que adoptaron el aborto antes que todos y los que lo hicieron después. Abajo del mismo, se encuentra un gráfico de lineas que muestra el cambio en el crimen con base 1985:
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+US <- tigris::states(class = "sf")
+```
+
+```{r message=FALSE, warning=FALSE}
+estados_legalizadores_1970 <- c("Alaska","New York","California","Washington","Hawaii")
+
+tmap_mode("view")
+US <- US %>% 
+  mutate(
+    early = ifelse(
+      NAME %in% estados_legalizadores_1970, yes = "Anticipado", no = "Resto EEUU"
+    )
+  )
+ 
+tm_shape(US) +
+  tm_polygons("early",
+              palette = "Purples",
+              title = "Numero de policias",
+              frame = F) +
+  tm_text("NAME", size = 1)
+```
+
+```{r message=FALSE, warning=FALSE}
+# Carga items necesarios necesarios
+labels <- data.frame(tipo = c('Primeros en legalizar (1970)', 'Resto de EEUU (1973)'),
+                     x = c(23, 17), y = c(-0.05, 0.3))
+ilustracion <- data.frame(ano = c('1995','1998'), x = c(25, 28), y = c(0.147462801, 0.147462801))
+
+crimenUS %>%
+  ggplot(aes(x = `Anos desde 1970`)) +
+  geom_line(aes(y = `avg var legalizadores 1973`, color = "#9593B4"), linewidth = 1.2) +
+  geom_line(aes(y = `avg var legalizadores 1970`, color = "#93032E"), linewidth = 1.2) +
+  geom_text(data = labels, aes(x, y, label = tipo, color = c("#93032E","#9593B4")), size = 4, fontface = "bold") +
+  geom_point(data = ilustracion, aes(x, y), size = 3, alpha = 0.7) +
+  geom_line(data = ilustracion, aes(x, y), linetype = 2, alpha = 0.7) +
+  annotate('text', x = 25, y = 0.177462801, label = '1995') +
+  annotate('text', x = 28, y = 0.117462801, label = '1998') +
+  labs(title = "Crimen: Estados que legalizaron tempranamente vs. el resto") +
+  ylab ('Variacion promedio del crimen (base 1985)') +
+  xlab ('Anos desde 1970') +
+  theme_bw() +
+  theme(legend.position = "none", plot.title = element_text(size = rel(1))) +
+  scale_color_manual(values = colores1) +
+  theme(axis.text.x = element_text(vjust = 0.5, hjust=1, face = "bold", size = 12),
+        axis.text.y = element_text(face = "bold", size = 12),
+        title = element_text(face = "bold", size = 12),
+        plot.subtitle=element_text(size=12, color="black"))
+```
+
+Se puede evidenciar en el gráfico la caída de la variación de la tasa de crimen para ambos grupos de Estados. También resalta el hecho de que, después de 1989, las curvas se separan notoriamente. Esta fecha corresponde a 19 años después de 1970, es decir, los criminales que nacieron en 1970 están cumpliendo esta edad. Pero, lo que sucede, es que hay, en promedio y proporción, menos criminales con 19 años de edad en 1989 dentro de los 5 Estados que legalizaron tempranamente. La nueva generación de criminales llegó con cada vez menos candidatos en estos casos, mientras que lo mismo sucedió para el resto de Estados Unidos 3 años después. Entonces, tanto a partir de los estudios econométricos realizados en el estudio de 2001 como visualmente aquí, se encuentra que sí, el crimen se reduce ante incrementos de la aborción.
+
+# **Conclusiones**
+
+-   Existe una gran diferencia entre la tasa de crimen oficial y la real, lo cual explica las conclusiones poco lógicas desde un punto de vista económico que se tenían antes del estudio de Soares (2004). De la misma manera, se considera estadísticamente significativa la consideración de la tasa de reportaje del crimen, y su relación positiva con el crecimiento y desarrollo económico, en este tipo de estudios.
+
+```{=html}
+<!-- -->
+```
+-   En cuanto a las variables de Seguridad Nacional, no es significativa cualquier conclusión que se realice a partir de, únicamente, las dos variables correspondientes a fuerza policial/militar y crimen. 
+
+-   Existen evidencias para afirmar que la aborción genera un efecto rezagado sobre el crimen. Se recomienda complementar este estudio con datos globales y desde otras perspectivas para poder conseguir una conclusión más robusta. Asimismo, sería pertinente evaluar el impacto de la posible reversión de la política emanada del caso Roe vs. Wade.
+
+-   La desigualdad, representada por el coeficiente de gini, presenta evidencias fuertes a estar relacionada con mayores tasas de homicidios a nivel global.
+
+-   El coeficiente de Gini presenta fuertes relaciones con la tasa de homicidios en América del Sur, América del Norte y África, mientras que en Asia y Europa no se evidencia lo mismo por, posiblemente, otros factores afectando alguna de las dos variables. 
+
+-   Europa presenta bajos niveles de relación entre las variables analizadas y sus niveles de crimen y homicidio, lo cual puede deberse a su inherentes bajas tasas de homicidios por, posiblemente, su estructura geopolítica o niveles de ingreso y desarrollo.
+
+-   Los índices de gobernanza, es decir, de la calidad y efectividad del Estado, muestran evidencias fuertes a favor de una relación indirecta con la tasa de homicidios a nivel general. Europa y África no muestran la misma relación que se presenta a nivel general y en el resto de continentes.
+
+-   Se recomienda evaluar de forma más amplia cada caso donde, a nivel de continente, se encuentran resultados que van en contra de la lógica y la teoría económica. Esto utilizando variables dummy que disciernen entre ciertas características clave de las poblaciones (de cada continente o subgrupo escogido) para separar así los posibles efectos detrás del análisis general planteado en este trabajo.
+
+# **Referencias**
+
+Violent crimes. (s. f.). USAFacts. <https://usafacts.org/data/topics/security-safety/crime-and-justice/crime-and-police/violent-crimes/>
+
+The US Census Bureau. (2021). Historical population change data (1910-2020). <https://www.census.gov/data/tables/time-series/dec/density-data-text.html>
+
+The US Census Bureau (2021). Historical population density data (1910-2020).
+
+Medina, F. (2001). Consideraciones sobre el índice de Gini para medir la concentración del ingreso. División de Estadística y Proyecciones Económicas. <https://repositorio.cepal.org/bitstream/handle/11362/4788/S01020119_es.pdf?...1>
+
+Schargrodsky, E., y Freira, L. (2021). Inequality and Crime in Latin America and the Caribbean: New Data for and Old Question. Caracas: CAF. <http://scioteca.caf.com/handle/123456789/178>
+
+Development, crime and punishment: accounting for the international differences in crime rates.  Rodrigo R.Soares (2004).
+
+<https://www.sciencedirect.com/science/article/abs/pii/S0304387803001330>
+
+THE IMPACT OF LEGALIZED ABORTION ON CRIME. THE QUARTERLY JOURNAL OF ECONOMICS. (2001).
+
+[https://pricetheory.uchicago.edu/levitt/Papers/DonohueLevittTheIm](https://pricetheory.uchicago.edu/levitt/Papers/DonohueLevittTheImpactOfLegalized2001.pdf)
+
+#  **Anexos**
+
+## Mapa del ranking de gobernanza para 2010
+
+```{r}
+data_mapa2 %>%
+  filter(year == 2010) %>%
+  tm_shape() +
+  tm_polygons("ranking",
+              palette = "Blues",
+              title = "Ranking",
+              frame = F)
+```
+
+## Mapa de la tasa de homicidio oficial para 2010
+
+```{r}
+data_mapa2 %>%
+  filter(year == 2010) %>%
+  tm_shape() +
+  tm_polygons("t_homicidio",
+              palette = "Reds",
+              title = "Tasa de homicidio oficial",
+              frame = F,
+              breaks = c(0, 5, 10, 15, 20, 30, 40, 60))
+
+```
+
+Mapa de la tasa de homicidio real para 1997
+
+```{r}
+data_mapa2 %>%
+  filter(year == 2010) %>%
+  tm_shape() +
+  tm_polygons("real_homicidio",
+              palette = "Reds",
+              title = "Tasa de homicidio IVCS",
+              frame = F,
+              breaks = c(0, 5, 10, 15, 20, 30, 40, 60))
+```
+
+## Mapa número de policias para 2010
+
+```{r}
+
+data_mapa2 %>%
+  filter(year == 2010) %>%
+  mutate(policia = as.numeric(police),
+        pop = as.numeric(pop)) %>%
+  mutate(policia = policia/pop*100000) %>%
+  tm_shape() +
+  tm_polygons("policia",
+              palette = "Purples",
+              title = "Numero de policias",
+              frame = F,
+              breaks = c(0,25,50,100,150,200,300,400,500,700))
+
+
+
+```
+
+## Mapa personal militar para 2010
+
+```{r}
+data_mapa2 %>%
+  filter(year == 2010) %>%
+  mutate(
+    personal_militar = as.numeric(personal_militar)
+  ) %>%
+  tm_shape() +
+  tm_polygons("personal_militar",
+              palette = "Greens",
+              title = "Personal militar (% fuerza laboral)",
+              frame = F,
+              breaks = c(0, 0.25, 0.5, 1, 1.5, 2, 3, 4, 5, 7.5, 10, 15))
+```
+
+## Mapa coeficiente gini para 2010
+
+```{r}
+data_mapa2 %>%
+  filter(year == 2010) %>%
+  mutate(
+    gini = as.numeric(gini)
+  ) %>%
+  tm_shape() +
+  tm_polygons("gini",
+              palette = "Greens",
+              title = "Coeficiente de Gini",
+              frame = F)
+```
