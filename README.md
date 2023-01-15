@@ -15,3 +15,5 @@ En el HTML se colocaron las fuentes de cada variable en el apartado de datos uti
 Una vez hecho eso, ir al markdown y correrlo sin pasos adicionales. Allí se generara el HTML.
 
 Los archivos tienen sus respectivos nombres
+
+NOTA IMPORTANTE: A LA HORA DE EXPORTAR ARCHIVOS AL FINAL DEL SCRIPT, HAY QUE CAMBIAR LA RUTA A LA CORRESPONDIENTE DE CADA COMPUTADORA.
