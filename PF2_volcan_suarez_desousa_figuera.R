@@ -19,6 +19,8 @@ library(sjlabelled)
 library(tigris)       ##Mapa US
 library(sf)
 
+
+
 # Carga de datos ----------------------------------------------------------
 #### Archivo 1. tasa de homicidios ####
 # Fuente: Banco Mundial
@@ -283,8 +285,7 @@ data_mapa <- left_join(World, data_proyecto, by = "code" ) %>%
 
 unique(data_mapa$continent)
 
-##### Exportacion #####
-write_xlsx(data_mapa,"/Users/alevolcan/Desktop/Archivos_data\\data_proyecto.xlsx")
+
 
  # Graficos  ---------------------------------------------------------------
 ### Preparacion #####
@@ -719,3 +720,8 @@ tm_shape(US) +
   tm_text("NAME", size = 1) 
 
 
+# Exportacion de bases ----------------------------------------------------
+
+data_set <- list(data_proyecto, avg)
+
+write_xlsx(data_set,"/Users/alevolcan/Desktop/data_proyecto.xlsx")
